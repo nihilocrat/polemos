@@ -31,13 +31,20 @@ function Start()
 
 	team = TeamSettings.getSingleton().humanPlayer.team;
 	
-	all_planets = gameObject.FindObjectsOfType(Planet);
-	
 	// game begins paused
 	yield WaitForSeconds(0.1);
+	all_planets = gameObject.FindObjectsOfType(Planet);
 	OnPause();
+	
+	Debug.Log("CONQUEST MODE: captures necessary: " + GetConquestLimit());
 }
 
+
+function GetConquestLimit()
+{
+	var limit = Mathf.RoundToInt(all_planets.length * 0.5) + 1;
+	return limit;
+}
 
 function OnSquadronDestroyed(squad : Squadron)
 {
@@ -75,28 +82,31 @@ function OnPlanetCapture(planet : Planet, oldPlayer : Player, newPlayer : Player
 	Messages.getSingleton().Add(newPlayer.team,
 		"We have liberated "+ planet.gameObject.name +" from "+ oldPlayer.playerName +"!");
 	
+	// have they taken my castle?
+	var shipyard = planet.GetComponent(Shipyard);
+	if(shipyard == oldPlayer.shipyard)
+	{
+		// eliminate oldPlayer
+		if(oldPlayer == TeamSettings.getSingleton().humanPlayer)
+		{
+			Lose();
+		}
+	}
+	
 	// recount planets owned by either team
 	var oldPlayer_planets = oldPlayer.getPlanets();
 	var newPlayer_planets = newPlayer.getPlanets();
 	
-	Debug.Log("new team # of planets: " + newPlayer_planets.length);
-	Debug.Log("old team # of planets: " + oldPlayer_planets.length);
-	
-	/*
 	// see if the player losing the planet has lost
-	if(oldPlayer_planets.length < 1 && oldPlayer.team != 0) {
+	if(newPlayer.team != 0 && newPlayer_planets.length >= GetConquestLimit())
+	{
 		Messages.Broadcast(newPlayer.team,
 			"The forces of " + oldPlayer.playerName + " have been defeated!");
 		Messages.Broadcast(oldPlayer.team, "We have been defeated!");
 		
 		// see if the human player has lost
-		if(oldPlayer.team == TeamSettings.getSingleton().humanPlayer.team) {
-			// YOU LOSE
-			// FIXME : move GUI stuff back to GUIPanel and broadcast a message
-			youLose.gameObject.SetActiveRecursively(true);
-			gameOver = true;
-			OnPause();
-			// TODO : disable pause function
+		if(newPlayer.team != TeamSettings.getSingleton().humanPlayer.team) {
+			Lose();
 		}
 		// FIXME : this is hacked in assuming there are only two players!
 		// MUST BE CHANGED in an iteration or two!
@@ -107,11 +117,20 @@ function OnPlanetCapture(planet : Planet, oldPlayer : Player, newPlayer : Player
 			OnPause();
 		}
 	}
-	*/
 	
 	// actually, we should be seeing if EVERYONE has lost all their planets yet
 	// so we can crown a winner
 	
+}
+
+function Lose()
+{
+	// YOU LOSE
+	// FIXME : move GUI stuff back to GUIPanel and broadcast a message
+	youLose.gameObject.SetActiveRecursively(true);
+	gameOver = true;
+	OnPause();
+	// TODO : disable pause function
 }
 
 function OnPause() {

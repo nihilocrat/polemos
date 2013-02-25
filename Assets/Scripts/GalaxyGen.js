@@ -572,7 +572,7 @@ function Go()
 	var planets = new Array();
 	
 	// FIXME SERIOUSLY! need to fix the pathnames!
-	var allnames = new Array(CSVReader.read("Data/"+placenamesFile+".txt"));
+	var allnames = new Array(CSVReader.read(placenamesFile));
 	//var loadednames_more = new Array(CSVReader.read("Data/places_latin.txt"));
 	//var allnames = loadednames.Concat(loadednames_more);
 	

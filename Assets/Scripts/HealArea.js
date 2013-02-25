@@ -44,7 +44,8 @@ function OnTriggerStay(other : Collider) {
             // heal the weakest member of the squad
             var weakest = squad.GetWeakestMember();
             if(weakest != null) {
-                weakest.SendMessage("OnDamage", -healAmount);
+            	var amountPerSecond = Mathf.FloorToInt(weakest.max_hp / weakest.secondsToRevive);
+                weakest.SendMessage("OnDamage", -amountPerSecond);
                 //Debug.Log("healzzz! " + weakest.gameObject.name);
             }
         }

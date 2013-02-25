@@ -41,7 +41,7 @@ function SetupFoldships()
 		*/
 	
 		// set cash rate to reflect their starting economy
-		playerObj.resetStats();
+		//playerObj.resetStats();
 	}
 
 	// signal to the rest of the scene that the game has officially started

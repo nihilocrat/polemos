@@ -61,26 +61,10 @@ function OnGUI()
 			GUI.Box(Rect(0,0, 120, 40), "");
 			GUI.DrawTexture(Rect(22,2,32,32), squad.GetBanner());
 			GUI.Label(Rect(0,0, 120, 40), squad.fleetName.Split(" "[0])[0]);
-			GUI.DrawTexture(Rect(60,0 ,16,16), squad.members[0].icon);
-			GUI.DrawTexture(Rect(60,20,16,16), squad.members[0].icon);
 			
-			// fleet icons
-			var fship : FleetShip;
-			var xoff = 0;
-			var yoff = 0;
-			for(var si=0; si < squad.members.Count ; si++)
-			{
-				fship = squad.members[si];
-
-				// silly hardcoding
-				if(si == Mathf.Ceil(squad.members.Count/2)+1) {
-					xoff = 0;
-					yoff += 1;
-				}
-				
-				DrawHealthBarVertical(80 + xoff * 10,yoff * 20, fship);
-				xoff += 1;
-			}
+			var display = String.Format("{0} / {1}", squad.aliveMemberCount, squad.troopCount);
+			
+			GUI.Label(Rect(60, 10, 100, 20), display);
 			
 			GUI.EndGroup();
 		}

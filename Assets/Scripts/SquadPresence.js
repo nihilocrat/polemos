@@ -2,6 +2,7 @@ public var squadron : Squadron;
 
 function Start() {
     Physics.IgnoreCollision(collider, squadron.flagship.collider);
+    Physics.IgnoreCollision(collider, squadron.influence.collider);
 }
 
 function OnSelected()
@@ -14,7 +15,7 @@ function OnUnSelected()
 
 function OnTriggerStay(other : Collider)
 {
-	//if(squadron.combatTargets.Count > 0) return;
+	if(squadron.combatTargets.Count > 0) return;
 	OnTriggerEnter(other);
 }
 
@@ -26,6 +27,13 @@ function OnTriggerEnter(other : Collider)
 		return;
 	}
 	
+	if(squadron.GetStatus() == "retreat" || squadron.GetCombatTargetPlanet() != null)
+	{
+		return;
+	}
+	
+	//Debug.Log("Presence is entering " + other.name);
+	
 	var other_squadpres = other.GetComponent(SquadPresence);
 	if(other_squadpres != null)
 	{
@@ -33,6 +41,7 @@ function OnTriggerEnter(other : Collider)
 	}
 	
 	// FIXME : this looks kind of ugly and bug-prone
+	/*
 	var other_healarea = other.GetComponent(HealArea);
 	if(other_healarea != null)
 	{
@@ -45,8 +54,18 @@ function OnTriggerEnter(other : Collider)
 		{
 			if(other_planet.team != squadron.team) {
 				squadron.SendMessage("AttackPlanet", other_planet);
-				other_planet.SendMessage("OnEnemyAttack", squadron);
+				//other_planet.SendMessage("OnEnemyAttack", squadron);
 			}
+		}
+	}
+	*/
+	var other_planet = other.GetComponent(Planet);
+	if(other_planet != null && squadron.GetStatus() != "retreat" && squadron.GetCombatTargetPlanet() != other_planet &&
+	   (other_planet.GetCaptureTeam() == 0 || other_planet.GetCaptureTeam() == squadron.team))
+	{
+		if(other_planet.team != squadron.team) {
+			squadron.SendMessage("AttackPlanet", other_planet);
+			//other_planet.SendMessage("OnEnemyAttack", squadron);
 		}
 	}
 }

@@ -53,10 +53,14 @@ public class Blazon : MonoBehaviour {
 			//UnSerialize(jsonString);
 		
 		if( assembleAtStartup )
+		{
 			blazonTexture = MakeTexture();
-		//Texture2D tex = Resources.Load("blazon/per_saltire") as Texture2D;
-		//Colorize(tex, new Color(1.0f,0.0f,0.0f,1.0f));
-		//renderer.material.mainTexture = tex;
+			
+			if(renderer != null)
+			{
+				renderer.material.mainTexture = blazonTexture;
+			}
+		}
 	}
 	
 	public void SetBlazon(Texture2D value) {

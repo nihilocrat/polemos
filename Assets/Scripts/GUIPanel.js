@@ -7,7 +7,6 @@ public var selected : GameObject;
 public var selectedGroup : Array;
 
 public var emptySpace : Texture2D;
-public var hackyShipPrefab : GameObject;
 
 private var show = new Hashtable();
 private var conditionalBoxes = new Hashtable();
@@ -23,11 +22,16 @@ private var rankTextures : Array;
 private var barTextures : Array;
 private var bannerTextures : Hashtable;
 
-public var design : GameObject[];
+public var objectPicker : ObjectPicker;
 
 
 function Start()
 {
+	if(objectPicker == null)
+	{
+		objectPicker = GetComponent(ObjectPicker);
+	}
+
 	currentPlayer = TeamSettings.getSingleton().humanPlayer;
 	
 	rankTextures = [
@@ -112,13 +116,14 @@ function OnGUI()
 	var cashRateString = cashRate.ToString();
 	if(cashRate >= 0) cashRateString = "+" + cashRate;
 	
-	GUI.BeginGroup(Rect(Screen.width*0.2, 0, width, 70));
-	GUI.Box(Rect(0,0,width,30), "");
-	GUI.Label(Rect(20,5,100,20), "$" + player.cash + " ("+ cashRateString+"/min)");
+	//GUI.BeginGroup(Rect(Screen.width*0.2, 0, width, 70));
+	GUI.BeginGroup(Rect(Screen.width*0.5 - 50, 0, 100, 70));
+	GUI.Box(Rect(0,0,100,30), "");
+	//GUI.Label(Rect(20,5,100,20), "$" + player.cash + " ("+ cashRateString+"/min)");
 	//GUI.Label(Rect(width-100,5,100,20), "Squadrons: ("+ player.squadCount +"/"+ player.squad_cap +")");
 	minutes = Mathf.Floor(Time.timeSinceLevelLoad/60);
 	seconds = Time.timeSinceLevelLoad - (minutes * 60);
-	GUI.Label(Rect(width-100,5,100,20), String.Format("Time: {0}:{1:00}", minutes, seconds) );
+	GUI.Label(Rect(10,5,100,20), String.Format("Time: {0}:{1:00}", minutes, seconds) );
 	
 	var bQueue = player.GetComponent(BuildQueue);
 	var toRemove = -1;
@@ -150,7 +155,7 @@ function OnGUI()
 		// comission squad gui
 		commissionIcon = Resources.Load("icons/icon_commission");
 		
-		if(GUI.Button(Rect(Screen.width-50, Screen.height - 50, 40, 40),
+		if(GUI.Button(Rect(Screen.width-90, Screen.height - 90, 80, 80),
 			GUIContent(commissionIcon, "Commission new squadron")
 		))
 		{
@@ -162,6 +167,16 @@ function OnGUI()
 	
 	}
 	
+	
+	if(Application.isWebPlayer)
+	{
+		if(GUI.Button(Rect(10, Screen.height - 50, 40, 40),
+			GUIContent(emptySpace, "Go Fullscreen")
+		))
+		{
+			Screen.fullScreen = !Screen.fullScreen;
+		}
+	}
 	
 	// below this point, do not display anything if nothing is selected ////////////////////////////////////////////////////
 	if((selected != null || selectedGroup.length > 0) && !show["ComissionSquadron"])
@@ -175,7 +190,8 @@ function OnGUI()
 		// group selection
 		if(selectedGroup != null && selectedGroup.length > 0)
 		{
-			if(selectedGroup.length > 1)
+			//if(selectedGroup.length > 1)
+			if(selectedGroup.length > 0)
 			{
 				GUI.Box(Rect(0,0,width,squadboxHeight), "");
 				
@@ -187,12 +203,14 @@ function OnGUI()
 					GUI.BeginGroup(Rect(i * cardWidth, 0, cardWidth,cardHeight));
 					// click button to select squad
 					if(GUI.Button(Rect(0,0,cardWidth,cardHeight), "")) {
+						objectPicker.ClearSelectedFleets();
 						selectedGroup.Clear();
-						selectedGroup.Add(squad);
-						selected = squad.gameObject;
+						objectPicker.SelectFleets([squad]);
+						//selectedGroup.Add(squad);
+						//selected = squad.gameObject;
 					}
 					
-					GUI.Label(Rect(20,0,cardWidth,20), squad.fleetName);
+					GUI.Label(Rect(40,0,cardWidth,40), squad.fleetName);
 					/*
 					if(GUI.Button(Rect(10,i * 20,150,20), squad.fleetName)) {
 						selectedGroup.Clear();
@@ -202,33 +220,19 @@ function OnGUI()
 					}
 					*/
 					
-					// fleet icons
-					var fship : FleetShip;
-					var xoff = 0;
-					var yoff = 1;
-					for(var si=0; si < squad.members.Count ; si++)
-					{
-						fship = squad.members[si].GetComponent(FleetShip);
-		
-						// silly hardcoding
-						if(si ==0 || si == 4) {
-							xoff = 0;
-							yoff += 1;
-							GUI.DrawTexture(Rect(0,yoff * 20, 16, 16), fship.icon);
-							xoff += 2;
-						}
-						
-						DrawHealthBarVertical(xoff * 10,yoff * 20, fship);
-						xoff += 1;
-					}
+					var troopIcon = squad.design[0].GetComponent(FleetShip).icon;
+					var display = String.Format("{0} / {1}", squad.aliveMemberCount, squad.troopCount);
+					GUI.Label(Rect(20,40,cardWidth,20), display);
+					GUI.Label(Rect(0,60,cardWidth,20), "Morale: " + Mathf.Floor((squad.morale / squad.maxMorale) * 100.0));				
 				
-					GUI.DrawTexture(Rect(0, 20, 16, 16),
-						Resources.Load("icons/icon_formation"));
-					GUI.Label(Rect(20,20,cardWidth,20), squad.currentFormation);
+					//GUI.DrawTexture(Rect(0, 20, 16, 16),
+					//	Resources.Load("icons/icon_formation"));
+					//GUI.Label(Rect(20,20,cardWidth,20), squad.currentFormation);
 					//GUI.Label(Rect(105,20,120,20), "morale: " + Mathf.Floor(squad.morale));
 					//GUI.Label(Rect(width-60,20,50,20), "XP: " + squad.xp);
 					
-					GUI.DrawTexture(Rect(0, 0, 16, 16), rankTextures[squad.rank]);
+					//GUI.DrawTexture(Rect(0, 0, 16, 16), rankTextures[squad.rank]);
+					GUI.DrawTexture(Rect(0, 0, 32, 32), troopIcon);
 					
 					GUI.EndGroup();
 				}
@@ -324,31 +328,6 @@ function OnGUI()
 					//GUI.BeginGroup(Rect(10,40,400,80));
 					GUI.BeginGroup(Rect(10,40,400,80));
 					
-					// upgrade planet stats
-					i = 0;
-					var buttonsize = 80;
-					for(var statname in planet.statList) {
-						// button : stat name plus rank
-						// tooltip : "upgrade: $cost"
-						var tip : String = "upgrade: $"+ planet.stats[statname]*Globals.planet_upgrade_cost_per_rank;
-						var statContent = new GUIContent("+", tip);
-						
-						GUI.Label(Rect(i * buttonsize, 0, buttonsize, 20), statname+": "+ planet.stats[statname]);
-						if(GUI.Button(Rect(i * buttonsize, 20, buttonsize, 20), statContent)) {
-							buildOrder = new BuildOrder();
-							buildOrder.cost = planet.GetUpgradeCost(statname);
-							buildOrder.icon = Resources.Load("icons/icon_planet_upgrade");
-							buildOrder.description = "";
-							buildOrder.sender = planet.gameObject;
-							buildOrder.buildMessage = "UpgradeStat";
-							buildOrder.buildArgs = statname;
-							
-							currentPlayer.SendMessage("OnSubmit", buildOrder);
-							//planet.UpgradeStat(statname);
-						}
-						i++;
-					}
-					
 					/*
 					for(i=0; i<planet.slots.length ; i++) {
 						GUI.Button(Rect(i * 40, 0, 40, 40), planet.slots[i]);
@@ -400,8 +379,9 @@ function OnGUI()
 		
 		// FIXME : this is really ugly
 		var ranklabels;
-		shipListIndex = GUI.Toolbar(Rect(Screen.width*0.25, Screen.height*0.74, width*0.8, 20),
-			shipListIndex,shipclasses);
+		shipListIndex = 0;
+		//shipListIndex = GUI.Toolbar(Rect(Screen.width*0.25, Screen.height*0.74, width*0.8, 20),
+		//	shipListIndex,shipclasses);
 		
 		if(shipListIndex == 1) {
 			frontRankShips = currentPlayer.units.GetShipsOfClass("Cruiser");
@@ -545,8 +525,9 @@ static function DrawShipCard(cardPos : Vector2, shipObj : GameObject)
 	buildDesign[2] = shipObj;
 	var shipCost = Squadron.GetSquadronCostFromDesign(buildDesign);
 	var fWeapon = fShip.GetMainWeapon();
+	var mainWeapon = fShip.weaponPrefab.GetComponent(FleetWeapon);
 	
-	var statsString = String.Format("Hull: {0}\nArmor: {1}\nSpeed: {2}", fShip.max_hp, fShip.armor, fShip.impulse);
+	var statsString = String.Format("Size: {0}\nDamage: {1:f1}\nSpeed: {2}", fShip.troopCount, mainWeapon.GetDPS(), fShip.impulse);
 	//if(fWeapon != null)
 	//	statsString += String.Format("\nDamage: {0:f1}\t\t\tArmor Penetration: {1:f1}\t\t\tRange: {2}", fWeapon.GetDPS(), fWeapon.GetPPS(), fWeapon.range);
 	
@@ -558,7 +539,7 @@ static function DrawShipCard(cardPos : Vector2, shipObj : GameObject)
 	GUI.BeginGroup(Rect(cardPos.x, cardPos.y, shipcardWidth, shipcardHeight));
 	
 	GUI.Label(Rect(10, 5, shipcardWidth, 40), shipnameParts[0] + "\n" + shipnameParts[1]);
-	GUI.Label(Rect(shipcardWidth - 30, 5, shipcardWidth, 20), "$"+shipCost.ToString());
+	//GUI.Label(Rect(shipcardWidth - 30, 5, shipcardWidth, 20), "$"+shipCost.ToString());
 	//GUI.DrawTexture(Rect(10,40, 32,32), bannerTextures[fShip.shipClass.ToLower()]);
 	GUI.DrawTexture(Rect(10,45, 32,32), classIcon);
 	GUI.DrawTexture(Rect(10,45, 32,32), icon);
@@ -641,17 +622,6 @@ function DrawDebugWindow(windowID : int)
 		
 		GUILayout.EndVertical();
 		GUILayout.EndArea();
-}
-
-
-function OnDesignChange(slotnum : int, ship : GameObject)
-{
-	design[slotnum] = ship;
-	
-	// the squad's flagship will match its front rank if the player doesn't
-	// choose something
-	if(slotnum == 0 && design[2] != design[0])
-		design[2] = ship;
 }
 
 function toggle(panelName : String)

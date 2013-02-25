@@ -33,21 +33,23 @@ function Start () {
 }
 
 
-function LateUpdate () {
+function Update ()
+{
 	var zoomAmt = 1.0 + (-Input.GetAxis("Zoom") * zoomspeed * Time.deltaTime);
 	distance = Mathf.Max(minZoom, Mathf.Min(maxZoom, distance * zoomAmt));
 	
-    if (target) {
+    if (target && (Input.GetAxis("Mouse X") != 0.0 && Input.GetAxis("Mouse Y") != 0.0)) {
         x += Input.GetAxis("Mouse X") * xSpeed * 0.02;
         y -= Input.GetAxis("Mouse Y") * ySpeed * 0.02;
  		
  		y = ClampAngle(y, yMinLimit, yMaxLimit);
  		       
         var rotation = Quaternion.Euler(y, x, 0);
-        var position = rotation * Vector3(0.0, 0.0, -distance) + target.position;
+        var position = target.position;//rotation * Vector3(0.0, 0.0, -distance) + target.position;
         
         transform.rotation = rotation;
         transform.position = position;
+        transform.Translate(Vector3(0.0, 0.0, -distance));
     }
 }
 

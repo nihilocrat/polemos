@@ -19,6 +19,9 @@ private var zoomVec : Vector3;
 private var original_rot : Quaternion;
 private var original_zoom : float;
 
+private var delta = 0.017;
+private var lastRealtime = 0.0;
+
 function Start()
 {
 	cam = Camera.main;
@@ -27,22 +30,27 @@ function Start()
 	original_zoom = transform.position.y;
 	
 	zoomAmt = original_zoom;
+	lastRealtime = Time.realtimeSinceStartup;
 }
 
 function Update()
 {
-	moveVec = new Vector3(Input.GetAxis("Horizontal"), 0, Input.GetAxis("Vertical"));
+	// use pause-independent delta
+	delta = Time.realtimeSinceStartup - lastRealtime;
+	lastRealtime = Time.realtimeSinceStartup;
+	
+	moveVec = new Vector3(Input.GetAxisRaw("Horizontal"), 0, Input.GetAxisRaw("Vertical"));
 		
 	// keyboard controls override mouse edge scolling 
 	if(mouseScrolling && !Input.GetMouseButton(0) &&
 		moveVec.x == 0 && moveVec.z == 0) {
-		moveVec = MouseMotion(scrollDeadzone) * movespeed * Time.deltaTime;
+		moveVec = MouseMotion(scrollDeadzone) * movespeed * delta;
 	}
 	else if (Input.GetButton("Pan")) {
-		moveVec = MouseMotion(panDeadzone) * movespeed * 3.0 * Time.deltaTime;
+		moveVec = MouseMotion(panDeadzone) * movespeed * 3.0 * delta;
 	}
 	else {
-		moveVec *= movespeed * Time.deltaTime;
+		moveVec *= movespeed * delta;
 	}
 	
 	// don't calculate if there's no point
@@ -58,7 +66,7 @@ function Update()
 	{
 		//var zoomAmt = 1.0 + (-Input.GetAxis("Zoom") * zoomspeed * Time.deltaTime);
 		//distance = Mathf.Max(minZoom, Mathf.Min(maxZoom, distance * zoomAmt));f
-		var zoomAdjust = Input.GetAxis("Zoom") * zoomspeed * Time.deltaTime * zoomAmt;
+		var zoomAdjust = Input.GetAxis("Zoom") * zoomspeed * delta * zoomAmt;
 		
 		if( (zoomAmt - zoomAdjust > minZoom) &&
 			(zoomAmt - zoomAdjust < maxZoom) )

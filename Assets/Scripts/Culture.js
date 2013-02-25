@@ -34,10 +34,10 @@ function Start() {
 		UnSerialize(Utils.LoadJsonFromFile("Cultures/"+jsonString));
 	}
 	
-	malenamelist = new Array(CSVReader.read("Data/"+malenames+".txt"));
-	femalenamelist = new Array(CSVReader.read("Data/"+femalenames+".txt"));
-	surnamelist = new Array(CSVReader.read("Data/"+surnames+".txt"));
-	ranklist = new Array(CSVReader.read("Data/"+ranknames+".txt"));
+	malenamelist = new Array(CSVReader.read(malenames));
+	femalenamelist = new Array(CSVReader.read(femalenames));
+	surnamelist = new Array(CSVReader.read(surnames));
+	ranklist = new Array(CSVReader.read(ranknames));
 	
 	//GenerateHouses(0, numHouses);
 }

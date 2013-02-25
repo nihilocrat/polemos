@@ -1,6 +1,7 @@
 public var shipName = "Frigate";
 public var shipClass = "Frigate";
 public var shipSubClass = "Light";
+public var troopCount = 20;
 public var icon : Texture2D;
 public var description : String;
 public var cost = 1;
@@ -16,14 +17,15 @@ public var minimum_distance = 5.0;
 
 public var max_hp = 100;
 public var armor = 0;
+public var secondsToRevive = 5.0;
 public var explosionPrefab : GameObject;
 public var isFoldship = false;
 
-private var sideThrusterPower = 0.25; // percentage of total impulse
+private var sideThrusterPower = 0.5; // percentage of total impulse
 
 private var attackTarget : Transform;
 private var moveTarget : Vector3;
-private var alignTarget : Vector3;
+private var alignTarget = Vector3.zero;
 
 private var boid : Steerable;
 private var weapon : FleetWeapon;
@@ -34,8 +36,12 @@ public var alive = true;
 private var suspendOrders = false;
 private var selected = false;
 
+private var selectIcon : GameObject;
+private var range2 = 0.0;
+
 function Awake() {
 	hp = max_hp;
+	minimum_distance *= minimum_distance;
 	
 	boid = GetComponent(Steerable);
 	
@@ -51,10 +57,10 @@ function Awake() {
 	{
 		weapon = GetMainWeapon();
 	}
-}
-
-function Start()
-{
+	range2 = weapon.range * weapon.range;
+	
+	selectIcon = transform.Find("selectIcon").gameObject;
+	selectIcon.SetActive(false);
 }
 
 function Revive() {
@@ -92,6 +98,7 @@ function AttachWeapon(newWeapon : GameObject)
 		
 		var weaponClone = Instantiate(newWeapon, mountTransform.position, mountTransform.rotation);
 		weaponClone.transform.parent = mountTransform;
+		weaponClone.GetComponent(FleetWeapon).owner = gameObject;
 	}
 	
 	return weaponClone.GetComponent(FleetWeapon);
@@ -108,13 +115,14 @@ function Update() {
 			(attackTarget == null || !attackTarget.gameObject.active) )//|| !attackTarget.GetComponent(FleetShip).alive)
 		{
 			//var squad_target = squadron.combatTargets[0];
-			Debug.Log("Picking new target!");
+			
+			// pick a new target
 			
 			// look for a target in ALL of my squad's current combatants
 			var new_target : Transform;
 			var closest_dist = Mathf.Infinity;
 			for(var t in squadron.combatTargets) {
-				var closest_in_t = t.GetClosestMember(transform);
+				var closest_in_t = t.GetClosestMember(transform).transform;
 				var this_dist = (closest_in_t.position - transform.position).sqrMagnitude;
 				if(this_dist < closest_dist) {
 					closest_dist = this_dist;
@@ -143,27 +151,37 @@ function FixedUpdate() {
 	var dist2targ : float;
 
 	// if my squad has no targets, I shouldn't be fighting
-	if(squadron.combatTargets.Count == 0)
+	if(squadron != null && squadron.combatTargets.Count == 0)
 		Disengage();
 
-	if(moveTarget != null && moveTarget != Vector3.zero && attackTarget == null) {
-		dist2targ = Vector3.Distance(transform.position, moveTarget);
+	if(moveTarget != null && moveTarget != Vector3.zero && attackTarget == null)
+	{
+		dist2targ = (moveTarget - transform.position).sqrMagnitude; //Vector3.Distance(transform.position, moveTarget);
 		
 		if(dist2targ > minimum_distance) {
 			seek(moveTarget);
 		}
 		else {
             // consider the move complete. Proceed to align.
-            // after alignment, consider the entire order complete and clear my targets.
-			//moveTarget = new Vector3();
-			moveTarget = Vector3.zero;
+			if(alignTarget != Vector3.zero && Vector3.Angle(transform.forward, alignTarget) > 0.1 )
+			{
+        		align(alignTarget);
+    		}
+    		else
+    		{
+	            // after alignment, consider the entire order complete and clear my targets.
+				//moveTarget = new Vector3();
+				alignTarget = Vector3.zero;
+				moveTarget = Vector3.zero;
+			}
 		}
 	}
 	
-	if(attackTarget != null) {
-		dist2targ = Vector3.Distance(transform.position, attackTarget.position);
+	if(attackTarget != null)
+	{
+		dist2targ = (attackTarget.position - transform.position).sqrMagnitude; //Vector3.Distance(transform.position, attackTarget.position);
 		
-		if(dist2targ > weapon.range) {
+		if(dist2targ > range2) {
 			seek(attackTarget.position);
 		}
 		else {
@@ -193,31 +211,6 @@ function FixedUpdate() {
 	
 }
 
-function OnGUI() {
-	if(!selected) return;
-	
-	/*
-	var distFromCamera = (Camera.main.transform.position - transform.position).sqrMagnitude;
-	if(distFromCamera > sqrIconViewDistance || distFromCamera <= sqrIconViewDistanceMin)
-	{
-		return;
-	}
-	*/
-
-	var iconPos = Camera.main.WorldToScreenPoint(transform.position);
-
-	if(iconPos.z >= 0 ) {
-		//var iconSize = Mathf.Max(1, 32 * ((20.0-Camera.main.transform.position.y)/20.0));
-		var iconSize = 16;
-
-		/*var bannerRect = new Rect(iconPos.x-iconSize,
-			Screen.height - iconPos.y-iconSize,
-			iconSize*2, iconSize*2);*/
-
-		GUIPanel.DrawHealthBarVertical(iconPos.x, Screen.height-iconPos.y+8, this);
-	}
-}
-
 function GoTo(destination : Vector3) {
 	moveTarget = destination;
 	
@@ -242,7 +235,8 @@ function Disengage() {
 
 
 function FireWeapon(target : Transform) {
-	BroadcastMessage("PewPew", target);
+	//BroadcastMessage("PewPew", target);
+	weapon.PewPew(target);
 }
 
 
@@ -258,7 +252,7 @@ function turnTo(direction : Vector3) {
 
 function seek(destination : Vector3) {
     boid.turnTo2D(destination);
-	
+    
 	// thrust
 	var facing = transform.TransformDirection(Vector3.forward);
     var dir = (destination - transform.position).normalized;
@@ -285,26 +279,26 @@ function OnDamage(hitData : Array) {
 	var amount = hitData[0];
 	var penetration = hitData[1];
 	var angle = hitData[2];
-
+	
+	var multiplier = 1.0;
+	
 	if(angle >= 45.0 && angle < 135.0)
 	{
 		// side
-		Debug.Log("side hit!");
-		amount *= 1.5;
+		multiplier = 1.5;
 	}
 	else if(angle >= 135.0)
 	{
 		// rear
-		Debug.Log("rear hit!");
-		amount *= 2.0;
+		multiplier = 3.0;
 	}
-
+	
 	if(amount > 0) {
 		// potential damage formula
 		//var totaldamage = amount - Mathf.Max(0, armor - penetration);
 		//amount = Mathf.Max(1, amount - Mathf.Max(0, armor - penetration));
 		// new percentage-based formula
-		amount = Mathf.Max(1, amount * (1.0 - 0.1 * Mathf.Max(0, armor - penetration)) );
+		amount = Mathf.Max(1, amount * multiplier * (1.0 - 0.1 * Mathf.Max(0, armor - penetration)) );
 	}
 
 	if(hp > 0){
@@ -340,10 +334,12 @@ function OnResumeOrders() {
 
 function OnSelected() {
 	selected = true;
+	selectIcon.SetActive(true);
 }
 
 function OnUnSelected() {
 	selected = false;
+	selectIcon.SetActive(false);
 }
 
 
@@ -388,18 +384,18 @@ function UnSerialize(json : String)
 	//this = LitJson.JsonMapper.ToObject.<FleetShip>(json);	
 }
 
-
 function Kill()
 {
 	// don't kill a dead horse
 	if(!alive) return;
-
+	
 	alive = false;
 	hp = 0;
-	gameObject.active = false; //renderer.enabled = false;
 	
 	// send word to the squadron!
 	squadron.SendMessage("OnMemberKilled", this);
 	
 	Instantiate(explosionPrefab, transform.position, transform.rotation);
+	
+	gameObject.SetActive(false); //renderer.enabled = false;
 }

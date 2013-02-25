@@ -9,10 +9,12 @@ private var squad_design = new GameObject[3];
 private var my_player : Player;
 private var team : int;
 
+private var homeworld : GameObject;
 private var my_planets = new Array();
 private var enemy_planets = new Array();
 
 private var thinkCooldown = 0.0;
+private var total_strength = 0;
 
 function Start() {
 	my_player = GetComponent(Player);
@@ -53,6 +55,7 @@ function ThinkLoop() {
 		}
 	}
 	
+	/*
 	for(var sy in shipyards) {
 		if(sy.team != team) {
 			enemy_planets.Add(sy);
@@ -61,7 +64,25 @@ function ThinkLoop() {
 			my_planets.Add(sy);
 		}
 	}
-
+	*/
+	
+	
+	for(var sy in shipyards)
+	{
+		if(sy.team == team)
+		{
+			homeworld = sy.gameObject;
+			break;
+		}
+	}
+	
+	// I'm dead!
+	if(shipyards.length == 0)
+	{
+		Debug.Log(my_player.name + " has been defeated!");
+		Destroy(this);
+	}
+	
 	Debug.Log("thinking!");
 	ThinkEconomy();
 	ThinkMilitary();
@@ -117,7 +138,8 @@ function ThinkEconomy() {
 		//var planet = my_planets[0];
 		//planet.ComissionSquadron(squad_design, "Frigate");
 		var sy = my_player.shipyard.GetComponent(Shipyard);
-		sy.ComissionSquadron(squad_design, randomFleetShip.shipClass);
+		if(sy.team == team)
+			sy.ComissionSquadron(squad_design, randomFleetShip.shipClass);
 		
 		// improve industry / economy
 		//my_planets[0].UpgradeStat("economy");
@@ -129,14 +151,15 @@ function ThinkMilitary() {
 	// evaluate the strength of each of our squadrons
 	// -- you know what? fuck it. if we have a certain amount of strength, send most/all units
 	// -- to the closest enemy planet
-	var total_strength = 0;
+	total_strength = 0;
 	var squads = FindObjectsOfType(Squadron);
 	var my_squads = new Array();
 	for(var s in squads) {
 		// ignore squads that are megaships -- currently only shipyards
 		if(s.team == team && s.shipClass != "Single") {
 			// include only able-bodied squads
-			if(s.GetPercentageHP() > 0.75) {
+			var percentHP = s.GetPercentageHP();
+			if(percentHP > 0.5) {
 			
 				// calc strength
 				var strength = s.GetSquadronCost();
@@ -144,8 +167,17 @@ function ThinkMilitary() {
 				
 				my_squads.Add(s);
 			}
+			else if(percentHP <= 0.5)
+			{
+				// send this squad to the closest friendly planet
+				var planet = GetClosestPlanet(s.transform.position);
+				s.GoTo(planet.transform.position);
+				Debug.Log("Sending " + s.fleetName + " to " + planet.name + " for healing");
+			}
 		}
 	}
+	
+	//Debug.Log("Current strength: " + total_strength);
 	
 	if(total_strength > attackAtStrength)
 	{
@@ -156,7 +188,8 @@ function ThinkMilitary() {
 
 		
 		// just pick my planet from the top of the stack
-		var source_planet = my_planets[0];
+		//var source_planet = my_planets[0];
+		var source_planet = homeworld;
 		
 		var targetted_planet : Vector3;
 		var closest = Mathf.Infinity;
@@ -191,4 +224,22 @@ function ThinkMilitary() {
 	// if I'm not ordering an attack, think about healing and redistributing
 	// move damaged squads to the planet they "belong" to
 	// move healthy squads to the closest frontline planet
+}
+
+
+function GetClosestPlanet(location : Vector3)
+{
+	var closest = Mathf.Infinity;
+	var closestPlanet = my_planets[0];
+	for(var p in my_planets)
+	{
+		var dist = (location - p.transform.position).sqrMagnitude;
+		if(dist < closest)
+		{
+			closestPlanet = p;
+			closest = dist;
+		}
+	}
+	
+	return closestPlanet;
 }
