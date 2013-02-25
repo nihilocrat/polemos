@@ -35,12 +35,15 @@ private var healAreaIndicator : Transform;
 
 function Awake() {
 	stats["economy"] = 2;
-	stats["industry"] = 3;
-	stats["defense"] = 1;
+	stats["industry"] = 2;
+	stats["defense"] = 3;
 };
 
 function Start() {
-	//SetPlayer(team);
+	if(myPlayer == null)
+	{
+		SetPlayer(team);
+	}
 	//team_material = TeamSettings.getSingleton().getMaterial(team);
 	
 	healAreaIndicator = transform.Find("heal_area/heal_area_indicator");
@@ -111,10 +114,12 @@ function ComissionSquadron(squad_design, shipClass, free) : Squadron {
 	// can't comission when under attack
 	//if(attackers.length > 0) return null;
 
+	var baseShip = squad_design[0].GetComponent(FleetShip);
+
 	// infer shipclass from design[0]
 	if(shipClass == null || shipClass == "")
 	{
-		shipClass = squad_design[0].GetComponent(FleetShip).shipClass;
+		shipClass = baseShip.shipClass;
 	}
 
 	// calculate everything... beep beep boop
@@ -153,8 +158,8 @@ function ComissionSquadron(squad_design, shipClass, free) : Squadron {
 	
 	// determine squad name
 	//var baseName = squad_design[0].baseFleetName;
-	var rand_name = Random.Range(0, squadron_names.length);
-	var s_name = myPlayer.getNextFleetName(squadron_names[rand_name]);
+	//var rand_name = Random.Range(0, squadron_names.length);
+	var s_name = myPlayer.getNextFleetName(baseShip.shipName);
 	
 	var squad_component = squad.GetComponent(Squadron);
 	squad_component.flagship = flaggy;
@@ -163,6 +168,7 @@ function ComissionSquadron(squad_design, shipClass, free) : Squadron {
 	squad_component.design = squad_design;
 	squad_component.fleetName = s_name;
 	squad_component.team = team;
+	squad_component.troopCount = squad_design[0].GetComponent(FleetShip).troopCount;
 	
 	var culture = myPlayer.GetComponent(Culture);
 	if(culture != null)

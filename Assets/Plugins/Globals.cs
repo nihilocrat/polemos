@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 public class Globals
 {
-	static public string version = "alpha 4.1";
+	static public string version = "alpha 1";
 	
 	static public int xp_per_level = 100;
 	static public float xp_scale = 1.2f;

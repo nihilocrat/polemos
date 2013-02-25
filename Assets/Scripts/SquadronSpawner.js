@@ -5,6 +5,7 @@ public var squadBannerPrefab : GameObject;
 public var squadronName = "1st Royal Lancers";
 public var squadronShipClass = "Frigate";
 public var squadronDesign : GameObject[];
+public var troopCount = 20;
 
 public var team = 1;
 public var rank = 1;
@@ -58,6 +59,7 @@ function ComissionSquadron(squad_design, shipClass, free) : Squadron {
 	squad_component.fleetName = squadronName;
 	squad_component.team = team;
 	squad_component.spawnWithFullHP = true;
+	squad_component.troopCount = troopCount;
 	
 	squad_component.flagship = flaggy;
 	var flaggy_ship = flaggy.GetComponent(FleetShip);

@@ -1,5 +1,6 @@
 import Globals;
 import System.Collections;
+import System.Collections.Generic;
 
 public var squadBannerPrefab : GameObject;
 
@@ -16,7 +17,7 @@ public var stats = Hashtable();
 public var statList = ["economy", "industry", "defense"];
 
 private var Cargo : Cargo;
-private var attackers = Array();
+private var attackers : List.<Squadron>;
 private var lastAttacker : Squadron;
 private var tickCooldown = 0.0;
 private var max_tickCooldown = 5.0;
@@ -25,10 +26,13 @@ private var captureTeam = 0;
 private var captureProgress = 0.0;
 
 private var myPlayer : Player;
-private var myBlazon : GUITexture;
+private var myBlazon : Transform;
 private var myBlazonOffset = new Vector3(0,-5,0);
+private var captureBlazon : Transform;
 
 private var healAreaIndicator : Transform;
+
+private var presenceSize = 0.0;
 
 function Awake()
 {
@@ -36,18 +40,26 @@ function Awake()
 	stats["industry"] = 1;
 	stats["defense"] = 1;
 	
-	myBlazon = transform.Find("blazon").GetComponent(GUITexture);
+	myBlazon = transform.Find("banner");
+	myBlazonOffset = myBlazon.localPosition;
+	
+	var captureObj = Instantiate(myBlazon.gameObject, myBlazon.position, myBlazon.rotation);
+	captureBlazon = captureObj.transform;
+	captureBlazon.parent = transform;
+	captureObj.SetActive(false);
 	
 	healAreaIndicator = transform.Find("heal_area/heal_area_indicator");
 	healAreaIndicator.gameObject.active = false;
+	
+	var col = GetComponent(SphereCollider);
+	presenceSize = col.radius * col.radius * 3;
+	
+	attackers = new List.<Squadron>();
 }
 
 function Start()
 {
 	SetPlayer(team);
-	
-	myBlazon.texture = myPlayer.GetBlazon();
-	myBlazonOffset = myBlazon.transform.localPosition;
 	
 	// prefill slots
 	slots.Add("-");
@@ -55,6 +67,10 @@ function Start()
 	stats["economy"] = 1;
 	stats["industry"] = 1;
 	stats["defense"] = 1;
+	
+	// silly hack to get the banner to display properly
+	yield WaitForSeconds(0.05);
+	SetPlayer(team);
 }
 
 function OnSelected() {
@@ -70,7 +86,7 @@ function SetPlayer(team_id : int) {
 	team = team_id;
 	myPlayer = Player.getPlayer(team_id);
 	SetTeamColor(team_id);
-	myBlazon.texture = myPlayer.GetBlazon();
+	myBlazon.renderer.material.mainTexture = myPlayer.GetBlazon();
 	
 	// pass message to other things, such as: HealArea
 	gameObject.BroadcastMessage("OnSetPlayer", team_id);
@@ -86,10 +102,46 @@ function SetTeamColor(team_id : int) {
 
 function Update()
 {
+	if(captureProgress > 0.0)
+	{			
+		// adjust banner height
+		myBlazon.localPosition = myBlazonOffset * ((0.5 - captureProgress) / 0.5);
+		
+		if(captureProgress > 0.5)
+		{
+			if(!captureBlazon.gameObject.activeSelf)
+			{
+				captureBlazon.gameObject.SetActive(true);
+				captureBlazon.renderer.material.mainTexture = Player.getPlayer(captureTeam).GetBlazon();
+			}
+			captureBlazon.localPosition = myBlazonOffset * ((captureProgress - 0.5) / 0.5);
+		}
+		else
+		{
+			captureBlazon.gameObject.SetActive(false);
+		}
+	}
+
 	//FIXME : turn this into a yield loop
 	if(tickCooldown > 0) tickCooldown -= Time.deltaTime;
 	else
 	{
+		// clean out missing attackers
+		var toRemove = List.<Squadron>();
+		for(var attacker in attackers)
+		{
+			if(attacker == null ||
+			   (attacker.transform.position - transform.position).sqrMagnitude > presenceSize
+			)
+			{
+				toRemove.Add(attacker);
+			}
+		}
+		for(var rem : Squadron in toRemove)
+		{
+			attackers.Remove(rem);
+		}
+	
 		// don't heal while under attack...
 		if(!IsUnderAttack())
 		{
@@ -99,8 +151,12 @@ function Update()
 		
 		if(attackers.Count == 0 && captureProgress > 0.0)
 		{
-			captureProgress -= Time.deltaTime * 10.0;
-			if(captureProgress < 0.0) captureProgress = 0.0;
+			captureProgress -= 10.0;
+			if(captureProgress < 0.0)
+			{
+				captureProgress = 0.0;
+				captureTeam = 0;
+			}
 		}
 	
 		tickCooldown = max_tickCooldown;
@@ -183,10 +239,20 @@ function GetCaptureTeam() : int {
 
 
 function OnEnemyAttack(attacker : Squadron) {
+	if(attackers.Contains(attacker))
+	{
+		return;
+	}
+	
 	lastAttacker = attacker;
 	
 	captureTeam = attacker.team;
-	
+	// capturables first need to become independent
+	if(team != 0)
+	{
+		captureTeam = 0;
+	}
+		
 	attackers.Add(attacker);
 }
 
@@ -202,7 +268,7 @@ function OnPerformCapture(amount : float) {
 	
 	// minimum capture amount == one ship
 	captureProgress += Mathf.Max(minAmount, amount - defenseBonus);
-
+	
 	if(captureProgress >= 1.0)
 	{
 		if(team == 0)
@@ -251,6 +317,10 @@ function Kill() {
 	captureProgress = 0.0;
 	captureTeam = 0;
 	
+	// exchange banners
+	captureBlazon.gameObject.SetActive(false);
+	myBlazon.localPosition = myBlazonOffset;
+	
 	myPlayer.resetStats();
 	oldPlayer.resetStats();
 	
@@ -266,6 +336,6 @@ function Kill() {
 
 
 function IsUnderAttack() : boolean {
-	if(attackers.length > 0) return true;
+	if(attackers != null && attackers.Count > 0) return true;
 	return false;
 }

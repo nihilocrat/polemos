@@ -2,11 +2,12 @@ public var squadron : Squadron;
 
 function Start() {
     Physics.IgnoreCollision(collider, squadron.flagship.collider);
+    Physics.IgnoreCollision(collider, squadron.presence.collider);
 }
 
 function OnTriggerStay(other : Collider)
 {
-	//if(squadron.combatTargets.Count > 0) return;
+	if(squadron.combatTargets.Count > 0) return;
 	OnTriggerEnter(other);
 }
 
@@ -18,22 +19,31 @@ function OnTriggerEnter(other : Collider)
 		return;
 	}
 
-	if(squadron.GetStatus() == "retreat" ||
+	if(squadron.GetStatus() == "retreat" || //squadron.GetStatus() == "combat" ||
 	   squadron.combatTargets.Contains(other)) return;
 
-	//var influence = other.gameObject.GetComponent(SquadInfluence);
+	//Debug.Log("Influence is entering " + other.name);
+	
+	var influence = other.gameObject.GetComponent(SquadInfluence);
+	/*
 	var other_squad = other.gameObject.GetComponent(Squadron);
 	var other_ship = other.gameObject.GetComponent(FleetShip);
 	
 	if(other_ship != null)  other_squad = other_ship.squadron;
+	*/
 	
-	if(other_squad != null)
+	if(influence != null)
 	{
-		// attack enemies
-		if(other_squad.team != squadron.team && other_squad.status != "retreat") {
-			squadron.SendMessage("Attack", other_squad);
-			// tell those ruffians that we have thrown down our glove!
-			other_squad.SendMessage("OnEnemyAttack", squadron);
+		other_squad = influence.squadron;
+	
+		if(other_squad != null)
+		{
+			// attack enemies
+			if(other_squad.team != squadron.team && other_squad.status != "retreat") {
+				squadron.SendMessage("Attack", other_squad);
+				// tell those ruffians that we have thrown down our glove!
+				other_squad.SendMessage("OnEnemyAttack", squadron);
+			}
 		}
 	}
 }

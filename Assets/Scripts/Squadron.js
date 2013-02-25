@@ -1,6 +1,8 @@
 import Globals;
 import System.Collections.Generic;
 
+public var troopCount = 20;
+public var columns = 5;
 public var fleetName = "1ere Habitants";
 public var captainName = "Foobar Foobarius";
 public var team = 1;
@@ -25,6 +27,7 @@ public var isCommandable = true;
 
 // list of actual ships on the field belonging to this fleet
 public var members = ArrayList();
+public var aliveMemberCount = 0;
 private var memberMax = 7;
 
 static public var formations = {
@@ -101,7 +104,10 @@ static public var formation_stats = {
 };
 
 private var range;
+private var spacing = 1.5;
+
 public var morale = 100.0;
+public var maxMorale = 100.0;
 public var xp = 0;
 
 // for keeping track of healing
@@ -122,6 +128,7 @@ private var moveTarget = Vector3.zero;
 private var squad_icon : Texture2D;
 private var banner : Texture2D;
 private var bannerOffset;
+private var rout : Transform;
 
 private var pointer : Transform;
 private var firing_arc : Transform;
@@ -136,13 +143,16 @@ public var combatTargets = new ArrayList();
 
 public var combatAttackers = new ArrayList();
 
-private var influence : SquadInfluence;
+public var influence : SquadInfluence;
+public var presence : SquadPresence;
 private var engageRange : float;
 private var suspendOrders = false;
 
 private var sqrIconViewDistance    = Mathf.Pow(40,2);
 private var sqrIconViewDistanceMin = Mathf.Pow(2,2);
 
+
+private var formation : Vector3[];
 
 function Start() {
 	bannerOffset = transform.localPosition;
@@ -170,40 +180,28 @@ function Start() {
 
 	var o = flagship.transform.position;
 	var r = flagship.transform.rotation;
-	if (shipClass == "Cruiser") {
-		AddShip( Instantiate(design[0], o + formations["combat"][1], r) );
-		AddShip( Instantiate(design[0], o + formations["combat"][2], r) );
+	
+	formation = new Vector3[troopCount];
+	var troopsPerColumn = Mathf.Ceil(troopCount / columns);
+	var row = 0;
+	var col =0;
+	for(var i=1; i<troopCount; i++)
+	{
+		row = i % troopsPerColumn;
 		
-		// spawn supports
-		if(design[1] != null) {
-			AddShip( Instantiate(design[1], o + formations["combat"][3], r) );
-			AddShip( Instantiate(design[1], o + formations["combat"][4], r) );
-		}
-	}
-	else if (shipClass == "Battleship") {
-		AddShip( Instantiate(design[0], o + formations["combat"][5], r) );
-		AddShip( Instantiate(design[0], o + formations["combat"][6], r) );
-	}
-	else if (shipClass == "Single") {
-		// for now, we assume this is the foldship of the fleet
-		if(myPlayer.playerData.ContainsKey("foldshipName"))
+		if(row == 0)
 		{
-			fleetName = myPlayer.playerData["foldshipName"].ToString();
+			col += 1;
 		}
-	}
-	else {
-		AddShip( Instantiate(design[0], o + formations["combat"][1], r) );
-		AddShip( Instantiate(design[0], o + formations["combat"][2], r) );
-		AddShip( Instantiate(design[0], o + formations["combat"][3], r) );
-		AddShip( Instantiate(design[0], o + formations["combat"][4], r) );
 		
-		// spawn supports
-		if(design[1] != null) {
-			AddShip( Instantiate(design[1], o + formations["combat"][5], r) );
-			AddShip( Instantiate(design[1], o + formations["combat"][6], r) );
-		}
+		var pos = Vector3(col * spacing, 0.0, row * spacing);
+		AddShip( Instantiate(design[0], o + pos, r) );
+		formation[i] = pos;
 	}
 	
+	var bravery = 10.0;
+	maxMorale = members.Count * bravery;
+	morale = maxMorale;
 	
 	// spawn flagship
 	//AddShip(Instantiate(design[2], o, r));
@@ -216,6 +214,12 @@ function Start() {
 		Debug.Log("setting shipyard team manually for " + members[0].name);
 		sy.SetPlayer(team);
 	}
+	
+	var blazonRender : MeshRenderer = transform.Find("banner").GetComponent(MeshRenderer);
+	var tex = myPlayer.GetBlazon();
+	blazonRender.material.mainTexture = tex;
+	rout = blazonRender.transform.Find("rout");
+	rout.gameObject.SetActive(false);
 	
 	
 	var labelPos = Camera.main.WorldToScreenPoint(transform.position + new Vector3(0,1,0));
@@ -274,7 +278,9 @@ function Start() {
 	presence = flagship.GetComponentInChildren(SquadPresence);
 	//engageRange = influence.collider.radius;
 	engageRange = range;
-	influence.collider.radius = range;
+	//if(influence != null)
+	//	influence.collider.radius = range;
+		
 	firing_arc = transform.Find("squad_influence/firing_arc");
 	if(firing_arc != null)
 	{
@@ -290,9 +296,11 @@ function Start() {
 		firing_arc.gameObject.active = false;
 	}
 	
+	aliveMemberCount = GetAliveMembers().Count;
+	
 	ResetSquadronSpeed();
 }
-
+/*
 function OnGUI() {
 	var distFromCamera = (Camera.main.transform.position - transform.position).sqrMagnitude;
 	if(distFromCamera > sqrIconViewDistance || distFromCamera <= sqrIconViewDistanceMin)
@@ -316,7 +324,7 @@ function OnGUI() {
 		GUI.DrawTexture(Rect(iconPos.x+8, Screen.height - iconPos.y+16, 8, 8), Resources.Load(rankpath));
 	}
 }
-
+*/
 function LateUpdate()
 {
 	//label.position = Camera.main.WorldToScreenPoint(transform.position + new Vector3(0,1,0));
@@ -333,16 +341,18 @@ function LateUpdate()
 		}
 		else
 		{
+			var baseCapture = 0.001;
 			var captureBonus = myPlayer.GetStat("percent_capture_bonus") * 0.01;
 			var neutralCaptureBonus = 0.0;
-			if(combatTargetPlanet.team == 0)
+			/*if(combatTargetPlanet.team == 0)
 			{
 				neutralCaptureBonus = myPlayer.GetStat("percent_neutral_capture_bonus") * 0.01;
-			}
+			}*/
 			// capture bonuses don't compound, but they stack
 			// FIXME : add a utils function to easily compound / stack bonuses?
-			var netCapture = 0.003 + (0.003 * captureBonus) + (0.003 * neutralCaptureBonus);
-			combatTargetPlanet.SendMessage("OnPerformCapture", netCapture * GetAliveMembers().Count * Time.deltaTime);
+			var netCapture = baseCapture + (baseCapture * captureBonus) + (baseCapture * neutralCaptureBonus);
+			netCapture *= aliveMemberCount; //GetAliveMembers().Count;
+			combatTargetPlanet.SendMessage("OnPerformCapture", netCapture * Time.deltaTime);
 		}
 	}
 	
@@ -360,8 +370,9 @@ function LateUpdate()
 			
 			if(finished) {
 				moveTarget = Vector3.zero;
-				if(status == "retreat") status = "idle";
+				status = "idle";
 				pointer.gameObject.active = false;
+				rout.gameObject.SetActive(false);
 			}
 			
 			/*
@@ -405,12 +416,13 @@ function LateUpdate()
 
 	// have to keep resetting position
 	// because unity collisions are sometimes really fucking stupid
-	transform.localPosition = bannerOffset;	
+	//transform.localPosition = bannerOffset;
+	transform.position = GetSquadronCenter() + bannerOffset;	
 
 	// Out of Combat actions
 	if(combatTargets.Count <= 0 && combatTargetPlanet == null) {
 		// regen morale
-		if(morale < 100 && status != "retreat")
+		if(morale < maxMorale && status != "retreat")
 			morale += Time.deltaTime * 0.5;
 		// reset squad influence
 		if(transform.parent != flagship.transform) {
@@ -434,7 +446,7 @@ function LateUpdate()
 }
 
 function AddShip(obj : GameObject) {
-	obj.renderer.sharedMaterial = team_material;
+	//obj.renderer.sharedMaterial = team_material;
 	var contrail = obj.transform.Find("contrail");
 	if(contrail) {
 		contrail.renderer.sharedMaterial = team_contrail_material;
@@ -502,19 +514,28 @@ function GoTo(destination : Vector3, dir : Vector3) {
 	);
 	
 	var dest = new GameObject();
-	var dirQuat = Quaternion.LookRotation(dir, Vector3.up);
+	var dirQuat = LookRotation(dir);
 	dest.transform.position = destination;
 	dest.transform.rotation = dirQuat;
 	
 	moveTarget = dest.transform.position;
-	pointer.position = moveTarget;
-	pointer.rotation = dirQuat;
+	if(pointer != null)
+	{
+		pointer.position = moveTarget;
+		pointer.rotation = dirQuat;
+	}
 	
+	GotoFormationPositions(dest.transform, destination, dir);
+	
+	// old formation movement method
+	/*
 	for(var i = 0; i < members.Count; i++) {
 		if(!members[i].active) continue;
-		var real_dest = destination + dest.transform.TransformDirection(formations[currentFormation][i]);
-		members[i].GetComponent(FleetShip).SendMessage("GoTo", real_dest);
+		var real_dest = destination + dest.transform.TransformDirection(formation[i]);
+		members[i].SendMessage("GoTo", real_dest);
 	}
+	*/
+	
 	/*
 	for(var s : GameObject in members) {
 		s.GetComponent(FleetShip).GoTo(destination);
@@ -523,6 +544,24 @@ function GoTo(destination : Vector3, dir : Vector3) {
 	//delete dest;
 	// collect thy garbage!
 	Destroy(dest);
+}
+
+function GotoFormationPositions(dest : Transform, destination : Vector3, direction : Vector3)
+{
+	var aliveMembers = GetAliveMembers();
+	var count = aliveMembers.Count;
+	
+	for(var i = 0; i < count; i++)
+	{
+		var formationPos = destination + dest.TransformDirection(formation[i]);
+		//var ship = GetClosestMember(aliveMembers, formationPos);
+		var ship = aliveMembers[i];
+		if(ship != null)
+		{
+			//aliveMembers.Remove(ship);
+			ship.GoTo(formationPos, direction);
+		}
+	}
 }
 
 function SetPointer(destination : Vector3, dir : Vector3) {
@@ -540,10 +579,8 @@ function SetPointer(destination : Vector3, dir : Vector3) {
 		Utils.StepRound(destination.z, 2.0)*/
 	);
 	
-	var dirQuat = Quaternion.LookRotation(dir, Vector3.up);
-	
 	pointer.position = destination;
-	pointer.rotation = dirQuat;
+	pointer.rotation = LookRotation(dir);
 	
 	pointer.gameObject.active = true;
 }
@@ -612,9 +649,16 @@ function Attack(other : Squadron) {
 	combatTarget = other;
 	combatTargets.Add(other);
 	
+	if(combatTargetPlanet != null)
+	{
+		combatTargetPlanet.SendMessage("OnEnemyDisengage", this);
+		combatTargetPlanet = null;
+	}
+	
 	// provide attack orders to squadmates
-	for(var m in members) {
-		var target = other.GetClosestMember(m.transform);
+	for(var m in GetAliveMembers()) {
+		m.OnResumeOrders();
+		var target = other.GetClosestMember(m.transform).transform;
 		m.SendMessage("Attack", target);
 	}
 	
@@ -662,9 +706,10 @@ function OnEnemyDisengage(retreater : Squadron) {
 	OnDisengage(retreater);
 }
 
-function OnMemberKilled(deadguy : FleetShip) {
+function OnMemberKilled(deadguy : FleetShip)
+{
 	var still_alive = GetAliveMembers();
-	Debug.Log("Someone died! remaining: " + still_alive.Count);
+	aliveMemberCount = still_alive.Count;
 	
 	if(still_alive.Count == 0)
 	{
@@ -673,9 +718,12 @@ function OnMemberKilled(deadguy : FleetShip) {
 	}
 
 	// see if we need to get another flagship
-	flagship = still_alive[0].gameObject;
-	transform.parent = flagship.transform;
-	transform.localPosition = bannerOffset;
+	if(flagship == null || flagship.GetComponent(FleetShip).alive == false)
+	{
+		flagship = still_alive[0].gameObject;
+		transform.parent = flagship.transform;
+		transform.localPosition = bannerOffset;
+	}
 	
 	// see if the whole squad is dead
 	/*
@@ -709,6 +757,7 @@ function Rout() {
 	Messages.Broadcast(team, fleetName +" have been routed!");
 	
 	morale = 0;
+	rout.gameObject.SetActive(true);
 }
 
 function AddMorale(amount : float) {
@@ -719,7 +768,7 @@ function AddMorale(amount : float) {
 	}
 	else if(morale > 0) {
 		morale += amount;
-		if(morale > 100.0) morale = 100.0;
+		if(morale > maxMorale) morale = maxMorale;
 	}
 }
 
@@ -728,7 +777,7 @@ function GetMemberOffset(idx : int) {
 	if(idx == -1) return Vector3.zero;
 	else {
 		// FIXME: can no longer assume that the flagship is at the center of the formation
-		return flagship.transform.TransformDirection(formations[currentFormation][idx]);
+		return flagship.transform.TransformDirection(formation[idx]); //formations[currentFormation][idx]);
 	}
 }
 
@@ -762,6 +811,7 @@ function GetWeakestMember() {
 					m.SendMessage("OnSuspendOrders");
 				flagship = GetNextFlagship().gameObject;
 				//ResetSquadronSpeed();
+				aliveMemberCount += 1;
 				break;
 			}
 		}
@@ -876,21 +926,41 @@ function GetAliveMembers() : ArrayList
 }
 
 
-function GetClosestMember(other : Transform) {
-	var closest : Transform;
+function GetClosestMember(other : Transform) : FleetShip
+{
+	var closest : FleetShip;
 	var closest_dist = Mathf.Infinity;
 	for(var other_m in members) {
 		if(!other_m.alive) continue;
 		
 		var dist = (other.position - other_m.transform.position).sqrMagnitude;
 		if(dist < closest_dist) {
-			closest = other_m.transform;
+			closest = other_m;
 			closest_dist = dist;
 		}
 	}
 	
 	return closest;
 }
+
+
+function GetClosestMember(myMembers : ArrayList, other : Vector3) : FleetShip
+{
+	var closest : FleetShip;
+	var closest_dist = Mathf.Infinity;
+	for(var other_m : FleetShip in myMembers) {
+		if(!other_m.alive) continue;
+		
+		var dist = (other - other_m.transform.position).sqrMagnitude;
+		if(dist < closest_dist) {
+			closest = other_m;
+			closest_dist = dist;
+		}
+	}
+	
+	return closest;
+}
+
 
 
 static function GetSquadronCostFromDesign(d)
@@ -923,14 +993,29 @@ function GetPercentageHP()
 	return parseFloat(total_hp) / parseFloat(max_hp);
 }
 
+function GetSquadronCenter()
+{
+	var aliveMembers = 0;
+	var sum = Vector3.zero;
+
+	for(var m in members)
+	{
+		if(!m.alive) continue;
+		
+		sum += m.transform.position;
+		aliveMembers += 1;
+	}
+	
+	return sum / aliveMembers;
+}
+
 //FIXME : make this OnDisengage
 function OnVictory() {
 	combatTarget = null;
 	combatTargetPlanet = null;
-	for(var m : FleetShip in members) m.SendMessage("Disengage");
+	for(var m : FleetShip in GetAliveMembers()) m.SendMessage("Disengage");
 	status = "idle";
 	OnResumeOrders();
-	Debug.Log("we won!");
 }
 
 function OnDisengage(other : Squadron) {
@@ -938,8 +1023,11 @@ function OnDisengage(other : Squadron) {
 	combatTargets.Remove(other);
 	
 	// tell my members to stop fighting these ships if they have them targetted
-	for(var m : FleetShip in members) {
-		var ship = m.GetAttackTarget().gameObject.GetComponent(FleetShip);
+	for(var m : FleetShip in GetAliveMembers()) {
+		var target = m.GetAttackTarget();
+		if(target == null)
+			continue;
+		var ship = target.gameObject.GetComponent(FleetShip);
 		if(ship != null && ship.squadron == other) {
 			Debug.Log("disengaging enemy ship!");
 			m.Disengage();
@@ -951,7 +1039,7 @@ function OnDisengage(other : Squadron) {
 function OnSuspendOrders() {
 	suspendOrders = true;
 	
-	for(var m in members) {
+	for(var m in GetAliveMembers()) {
 		m.SendMessage("OnSuspendOrders");
 	}
 }
@@ -959,7 +1047,7 @@ function OnSuspendOrders() {
 function OnResumeOrders() {
 	suspendOrders = false;
 	
-	for(var m in members) {
+	for(var m in GetAliveMembers()) {
 		m.SendMessage("OnResumeOrders");
 	}
 }
@@ -1016,6 +1104,21 @@ function GetHealCooldown() {
 
 function ResetHealCooldown() {
 	healCooldown = max_healCooldown;
+}
+
+function LookRotation(dir : Vector3) : Quaternion
+{
+	var dirQuat : Quaternion;
+	if(dir != Vector3.zero)
+	{
+		dirQuat = Quaternion.LookRotation(dir, Vector3.up);
+	}
+	else
+	{
+		dirQuat = Quaternion.identity;
+	}
+	
+	return dirQuat;
 }
 
 function Kill() {

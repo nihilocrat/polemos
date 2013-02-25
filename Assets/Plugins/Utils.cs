@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.IO;
+using System.Text;
 
 public class Utils
 {
@@ -31,6 +32,23 @@ public class Utils
 		return value;
 	}
 	
+	static public GameObject GetClosestToPosition(GameObject[] objs, Vector3 pos)
+	{
+		var closest = Mathf.Infinity;
+		GameObject closestObj = null;
+		foreach(GameObject obj in objs)
+		{
+			var dist = (pos - obj.transform.position).sqrMagnitude;
+			if(dist < closest)
+			{
+				closestObj = obj;
+				closest = dist;
+			}
+		}
+		
+		return closestObj;
+	}
+	
 	static public string GetFileNameFromFleetName(string name, string fileType)
 	{
 		var output = "";
@@ -60,13 +78,34 @@ public class Utils
 		return LitJson.JsonMapper.ToJson(pocoObject);
 	}
 	
-	static public string LoadJsonFromFile(string path)
+	static public string DataPath
 	{
-		path = Application.dataPath + "/Data/" + path;
+		get
+		{
+			return Application.dataPath + "/Resources/Data/";
+		}
+	}
+	
+	static public string LoadJsonFromFile(string filename)
+	{
+		string path = Application.dataPath + "/Resources/Data/" + filename + ".txt";
+		string text;
 		
-	    var streamReader = new StreamReader(path);
-		var text = streamReader.ReadToEnd();
-		streamReader.Close();
+		// try to load first from the filesystem, otherwise use a textasset
+		// this allows modding, but also allows us to make a webplayer
+		if(false)//File.Exists(path))
+		{
+		    var streamReader = new StreamReader(path, Encoding.UTF8);
+			text = streamReader.ReadToEnd();
+			streamReader.Close();
+		}
+		else
+		{
+			var textAsset = Resources.Load("Data/" + filename) as TextAsset;
+			if(textAsset == null)
+				throw new IOException("File not found: "+ filename);
+			text = textAsset.text;
+		}
 		
 		return text;
 	}
@@ -85,7 +124,6 @@ public class Utils
 		Debug.Log("Wrote to " + filename);
 		return true;
 	}
-
 	
 	/// convert carinal number (1,2,3,4) to ordinal (1st,2nd,3rd,4th)
 	static public string toOrdinal(int number) {

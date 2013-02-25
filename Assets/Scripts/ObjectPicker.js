@@ -27,6 +27,8 @@ private var hoverText : String;
 
 private var pickerPlane : Plane;
 private var guiPanel : GUIPanel;
+private var mo : MouseOrbit;
+private var cc : CameraControls;
 
 private var singleton : ObjectPicker;
 
@@ -54,6 +56,9 @@ function Start()
 	pickerPlane = new Plane(Vector3(0,1,0), Vector3(0,0,0));
 	
 	guiPanel = GetComponent(GUIPanel);
+	
+	mo = Camera.main.GetComponent(MouseOrbit);
+	cc = Camera.main.GetComponent(CameraControls);
 	
 	singleton = this;
 }
@@ -133,18 +138,7 @@ function Update ()
 		
 		// now perform GUI actions and other things based on
 		// what was just selected
-		if(selectedFleets != null) {
-			guiPanel.selectedGroup = selectedFleets;
-			
-			for(fleet in selectedFleets)
-			{
-				fleet.SendMessage("OnSelected", SendMessageOptions.DontRequireReceiver);
-				for(var ship in fleet.members)
-				{
-					ship.BroadcastMessage("OnSelected", SendMessageOptions.DontRequireReceiver);
-				}
-			}
-		}
+		SelectFleets(selectedFleets);
 
 		// do some witchcraft to make the OnGUI code not draw the box on next click
 		buttonDownPos = buttonUpPos;
@@ -259,14 +253,9 @@ function Update ()
 	
 	// camera controls
 	// FIXME : these can probably go elsewhere, actually
-	var mo : MouseOrbit;
-	var cc : CameraControls;
 	var primarySel = GetPrimarySelected();
-	if(Input.GetButtonDown("Rotate") && primarySel != null) {
-
-		mo = Camera.main.GetComponent(MouseOrbit);
-		cc = Camera.main.GetComponent(CameraControls);
-		
+	if(Input.GetButtonDown("Rotate") && primarySel != null)
+	{	
 		mo.target = primarySel;
 		
 		mo.Reset();
@@ -281,10 +270,8 @@ function Update ()
 			)
 		);
 	}
-	else if(Input.GetButtonUp("Rotate")) {
-		mo = Camera.main.GetComponent(MouseOrbit);
-		cc = Camera.main.GetComponent(CameraControls);
-		
+	else if(Input.GetButtonUp("Rotate"))
+	{
 		cc.SetZoom(mo.distance);
 		
 		//iTween.Stop(mo.gameObject);
@@ -423,7 +410,7 @@ function OnMouseClick(hit : RaycastHit)
 	
 	guiPanel.selected = selected.gameObject;
 	
-	selected.gameObject.SendMessage("OnSelected");
+	selected.gameObject.SendMessage("OnSelected", SendMessageOptions.DontRequireReceiver);
 	
 	// select fleet, if possible
 	var selectedSquad : Squadron;
@@ -491,6 +478,23 @@ function DoGroupSelect(buttonUpPos : Vector2, buttonDownPos : Vector2) : Array
 	return selected;
 }
 
+function SelectFleets(selected : Array)
+{
+	selectedFleets = selected;
+
+	if(selectedFleets != null) {
+		guiPanel.selectedGroup = selectedFleets;
+		
+		for(fleet in selectedFleets)
+		{
+			fleet.SendMessage("OnSelected", SendMessageOptions.DontRequireReceiver);
+			for(var ship in fleet.members)
+			{
+				ship.BroadcastMessage("OnSelected", SendMessageOptions.DontRequireReceiver);
+			}
+		}
+	}
+}
 
 function ClearSelectedFleets() {
 	for(var s in selectedFleets)
